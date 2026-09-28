@@ -14,6 +14,34 @@ Di terminal kedua, jalankan `npm run dev:web`, lalu buka `http://localhost:5173`
 
 REST API berjalan di `http://localhost:3000`; buka UI di `http://localhost:5173`. Isi koneksi auth, characters, world, token admin minimal 32 karakter acak, SOAP host/port, serta username/password akun AzerothCore GM level 3 pada `.env`. `SOAP_HOST` default ke `DB_HOST`; ubah jika worldserver berada di host lain.
 
+## Deploy dengan PM2
+
+Frontend production dilayani pada port `4173`; request `/api` diteruskan oleh web process ke backend di `127.0.0.1:3000`. Build frontend sebelum menjalankan proses PM2:
+
+```sh
+npm ci
+npm run build
+npm install --global pm2
+npm run start:prod
+pm2 status
+pm2 save
+pm2 startup
+```
+
+Jalankan perintah yang dicetak oleh `pm2 startup` untuk mengaktifkan startup otomatis setelah reboot. UI tersedia di `http://<server>:4173`; arahkan reverse proxy HTTPS ke port tersebut. Simpan `.env` di server dan jangan masukkan kredensial ke file PM2.
+
+Untuk deploy versi baru:
+
+```sh
+git pull
+npm ci
+npm run build
+npm run start:prod
+pm2 save
+```
+
+`ecosystem.config.js` mengelola `azeroth-api` dan `azeroth-web` sebagai proses terpisah. Ubah port atau host pada file itu jika konfigurasi server berbeda.
+
 Aktifkan SOAP di `worldserver.conf` dan restart worldserver:
 
 ```ini

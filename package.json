@@ -6,6 +6,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "start:web": "node src/web.js",
+    "start:prod": "pm2 startOrReload ecosystem.config.js --env production",
     "dev": "node --watch src/server.js",
     "dev:web": "vite --host 0.0.0.0",
     "build": "vite build",
