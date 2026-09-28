@@ -16,7 +16,6 @@ const SOAP_WSDL = `<?xml version="1.0" encoding="UTF-8"?>
 </wsdl:definitions>`;
 
 function soapError(message, statusCode = 502) {
-    console.error(`SOAP error: ${message} (status code: ${statusCode})`);
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
@@ -48,6 +47,9 @@ async function executeSoapCommand(command) {
       throw soapError('Akun SOAP harus memiliki GM level 3 pada realm ini');
     }
     const detail = cause.message || 'unknown SOAP error';
+    if (cause.code === 'ECONNRESET' || cause.errno === 'ECONNRESET' || /ECONNRESET/.test(detail)) {
+      throw soapError(`Koneksi SOAP ke ${endpoint} terputus saat command berjalan. API tetap aktif; periksa koneksi worldserver dan ulangi command ini.`, 503);
+    }
     if (/ECONNREFUSED/.test(detail)) {
       throw soapError(`Koneksi ke ${endpoint} ditolak. Pastikan worldserver berjalan dengan SOAP.Enabled = 1, SOAP.IP bind ke interface yang dapat dijangkau API, dan firewall mengizinkan port ${port} dari host API.`);
     }
