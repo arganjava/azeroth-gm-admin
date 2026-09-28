@@ -42,6 +42,7 @@ SOAP.Port = 7878
 - `GET/POST /api/admin/characters/:guid/professions` - lihat dan ubah skill profesi yang sudah dipelajari (karakter harus offline)
 - `GET/POST /api/admin/characters/:guid/reputations` - lihat dan ubah standing faction (karakter harus offline)
 - `POST /api/admin/characters/:guid/teleport` - simpan map dan koordinat karakter; karakter online di-force logout sebelum posisi diperbarui
+- `POST /api/admin/characters/:guid/message` - broadcast pengumuman ke realm atau kirim pesan admin ke karakter online
 - `POST /api/admin/characters/:guid/items` - beri item via GM command SOAP `additem`
 - `POST /api/admin/characters/:guid/items/remove` - kurangi item saat karakter offline
 - `POST /api/admin/characters/:guid/money` - tambah/kurangi copper di database saat karakter offline
@@ -51,6 +52,8 @@ SOAP.Port = 7878
 Endpoint `/api/admin/*` selain pembuatan session membutuhkan `Authorization: Bearer <CMS_ADMIN_TOKEN>`. Command level lewat SOAP mendukung karakter online maupun offline, sedangkan `.additem` memerlukan target online. Untuk saldo offline, API memperbarui wallet dengan transaksi database. Untuk karakter online, API mengirim uang via `.send money` sebagai mail karena `.modify money` hanya menargetkan player yang sedang dipilih; pengurangan saldo online ditolak. Equipment dapat diubah untuk karakter offline maupun online. Saat karakter online, UI meminta konfirmasi dan server melakukan force logout sebelum menyimpan perubahan agar state worldserver tidak menimpa database. Katalog equipment mengurutkan item dengan stat relevan bagi class lebih dulu tanpa menghilangkan item legal untuk build/spec berbeda. Tier quality ditampilkan memakai warna Common putih, Uncommon hijau, Rare biru, Epic ungu, dan Legendary oranye. Item equipment yang belum ada di tas dikirim sementara lewat `.send items`, lalu attachment dipindahkan ke slot equipment oleh API.
 
 Pool database memakai TCP keepalive dan membuang koneksi idle/fatal agar koneksi terputus dapat dibuat ulang tanpa restart API. Reset koneksi saat request dibalas dengan HTTP 503; periksa status `/api/health` dan ulangi request setelah koneksi pulih. Client SOAP dibuat per command, jadi reset tidak merusak request berikutnya. Namun, jika koneksi reset setelah command mutatif dikirim, command mungkin sudah dijalankan; periksa keadaan karakter sebelum mengirim ulang agar item atau uang tidak terduplikasi. Teleport menyimpan map serta koordinat ke database; karakter online akan di-force logout terlebih dulu dan posisi baru berlaku saat login kembali. UI menyediakan pilihan map, landmark umum, dan koordinat manual X/Y/Z.
+
+Pesan GM mendukung `announce` untuk broadcast sistem ke semua pemain online dan `send message` untuk menampilkan notifikasi admin ke karakter online yang sedang dibuka. Pesan langsung ini bukan whisper chat `/w` dan tidak dikirim ke karakter offline. Opsi General adalah broadcast realm, bukan pesan ke channel chat bernama General.
 
 API membuat tabel `cms_money_logs` otomatis pada schema characters saat startup, sehingga user database memerlukan izin `CREATE` di schema tersebut. Perubahan saldo yang dilakukan sebelum tabel ini tersedia tidak tercatat; pengurangan inventory dibatasi untuk karakter offline.
 

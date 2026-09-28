@@ -168,6 +168,8 @@ function App() {
   const [teleportMapId, setTeleportMapId] = useState('0');
   const [teleportLocation, setTeleportLocation] = useState('stormwind');
   const [teleportCoordinates, setTeleportCoordinates] = useState({ x: '-8833.38', y: '628.62', z: '94', orientation: '0' });
+  const [messageAudience, setMessageAudience] = useState('character');
+  const [adminMessage, setAdminMessage] = useState('');
   const [moneyDirection, setMoneyDirection] = useState('add');
   const [gold, setGold] = useState('');
   const [silver, setSilver] = useState('');
@@ -488,6 +490,30 @@ function App() {
                   <label className="field-label" htmlFor="teleport-orientation">ORIENTASI</label>
                   <div className="inline-control"><input id="teleport-orientation" type="number" min="0" max="6.284" step="any" value={teleportCoordinates.orientation} onChange={(event) => setTeleportCoordinates({ ...teleportCoordinates, orientation: event.target.value })} /><button className="primary-button" type="submit" disabled={busy}>Terapkan teleport <span>↗</span></button></div>
                   <p className="operation-note">Karakter online akan di-force logout; posisi baru digunakan saat login kembali.</p>
+                </form>
+              </section>
+
+              <section className="operation-block">
+                <div className="operation-heading"><span className="operation-icon">✉</span><div><span className="eyebrow">REALM MESSAGES</span><h3>Kirim pesan GM</h3></div></div>
+                <form onSubmit={(event) => {
+                  event.preventDefault();
+                  const successMessage = messageAudience === 'general'
+                    ? 'Pengumuman berhasil dikirim ke seluruh pemain online.'
+                    : `Pesan admin berhasil dikirim ke ${selected.name}.`;
+                  perform(() => request(`/api/admin/characters/${selected.guid}/message`, token, { method: 'POST', body: JSON.stringify({ audience: messageAudience, message: adminMessage }) }).then((result) => {
+                    setAdminMessage('');
+                    return result;
+                  }), successMessage);
+                }}>
+                  <label className="field-label" htmlFor="message-audience">PENERIMA</label>
+                  <select id="message-audience" value={messageAudience} disabled={busy} onChange={(event) => setMessageAudience(event.target.value)}>
+                    <option value="general">General · broadcast ke seluruh realm</option>
+                    <option value="character">Karakter ini · pesan privat</option>
+                  </select>
+                  <label className="field-label" htmlFor="admin-message">PESAN</label>
+                  <textarea id="admin-message" rows="4" maxLength="255" value={adminMessage} disabled={busy} onChange={(event) => setAdminMessage(event.target.value)} placeholder="Tulis pesan untuk pemain..." required />
+                  <div className="inline-control message-submit-row"><small>{adminMessage.length}/255 karakter</small><button className="primary-button" type="submit" disabled={busy || !adminMessage.trim() || (messageAudience === 'character' && !selected.online)}>{messageAudience === 'general' ? 'Broadcast' : 'Kirim pesan'} <span>↗</span></button></div>
+                  <p className="operation-note">General dikirim sebagai pengumuman sistem ke semua pemain online. Pesan privat hanya untuk karakter online dan tampil sebagai notifikasi admin, bukan whisper chat /w.</p>
                 </form>
               </section>
 

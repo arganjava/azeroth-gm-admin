@@ -950,6 +950,30 @@ app.get('/api/admin/characters/:guid/money-logs', async (req, res, next) => {
   }
 });
 
+app.post('/api/admin/characters/:guid/message', async (req, res, next) => {
+  const guid = parseGuid(req.params.guid);
+  const audience = req.body?.audience;
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+  if (!guid || !['general', 'character'].includes(audience) || !message || message.length > 255 || /[\u0000-\u001f\u007f]/.test(message)) {
+    return res.status(400).json({ error: 'target atau pesan tidak valid (pesan maksimal 255 karakter)' });
+  }
+
+  try {
+    const character = await findCharacter(guid);
+    if (!character) return res.status(404).json({ error: 'karakter tidak ditemukan' });
+    if (audience === 'character' && !character.online) {
+      return res.status(409).json({ error: 'pesan langsung hanya bisa dikirim ke karakter online' });
+    }
+    const command = audience === 'general'
+      ? `announce ${message}`
+      : `send message ${character.name} ${message}`;
+    const result = await executeSoapCommand(command);
+    return res.json({ data: { audience, character: audience === 'character' ? character.name : null, message, result } });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 app.post('/api/admin/characters/:guid/logout', async (req, res, next) => {
   const guid = parseGuid(req.params.guid);
   if (!guid) return res.status(400).json({ error: 'guid karakter tidak valid' });
