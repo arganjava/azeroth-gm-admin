@@ -19,25 +19,20 @@ REST API berjalan di `http://localhost:3000`; buka UI di `http://localhost:5173`
 Frontend production dilayani pada port `4173`; request `/api` diteruskan oleh web process ke backend di `127.0.0.1:3000`. Build frontend sebelum menjalankan proses PM2:
 
 ```sh
-npm ci
-npm run build
-npm install --global pm2
-npm run start:prod
-pm2 status
-pm2 save
-pm2 startup
+npm run deploy:prod
+npx pm2 status
+npx pm2 save
+npx pm2 startup
 ```
 
-Jalankan perintah yang dicetak oleh `pm2 startup` untuk mengaktifkan startup otomatis setelah reboot. UI tersedia di `http://<server>:4173`; arahkan reverse proxy HTTPS ke port tersebut. Simpan `.env` di server dan jangan masukkan kredensial ke file PM2.
+`deploy:prod` memasang semua dependency lokal, membangun frontend, lalu start/reload kedua proses PM2. Jalankan perintah yang dicetak oleh `npx pm2 startup` untuk mengaktifkan startup otomatis setelah reboot. UI tersedia di `http://<server>:4173`; arahkan reverse proxy HTTPS ke port tersebut. Simpan `.env` di server dan jangan masukkan kredensial ke file PM2.
 
 Untuk deploy versi baru:
 
 ```sh
 git pull
-npm ci
-npm run build
-npm run start:prod
-pm2 save
+npm run deploy:prod
+npx pm2 save
 ```
 
 `ecosystem.config.js` mengelola `azeroth-api` dan `azeroth-web` sebagai proses terpisah. Ubah port atau host pada file itu jika konfigurasi server berbeda.
@@ -60,7 +55,7 @@ SOAP.Port = 7878
 - `POST /api/admin/session` - validasi token admin
 - `GET /api/admin/accounts?q=username-atau-id` dan `GET /api/admin/accounts/:id` - cari akun dan daftar karakter
 - `POST /api/admin/accounts/:id/logout` dan `POST /api/admin/accounts/:id/ban` - force logout dan ban akun
-- `GET /api/admin/guilds?q=nama-atau-id` dan `GET /api/admin/guilds/:id` - cari guild, jumlah anggota, total uang karakter anggota, dan roster
+- `GET /api/admin/guilds` menampilkan semua guild; `GET /api/admin/guilds?q=nama-atau-id` mencari guild, dan `GET /api/admin/guilds/:id` menampilkan jumlah anggota, total uang karakter anggota, dan roster
 - `GET /api/admin/characters?q=nama` - cari karakter
 - `GET /api/admin/characters/:guid` - detail karakter, progression, equipment, dan inventory
 - `GET /api/admin/characters/:guid/equipment-items?slot=0&q=nama` - pilihan item equipment yang cocok slot/race/class/level, beserta tier quality dan stat prioritas class
@@ -68,6 +63,7 @@ SOAP.Port = 7878
 - `GET /api/admin/items?q=nama-atau-id` - cari item
 - `POST /api/admin/characters/:guid/level` - set level via GM command SOAP `character level`
 - `GET/POST /api/admin/characters/:guid/professions` - lihat dan ubah skill profesi yang sudah dipelajari (karakter harus offline)
+- `GET/POST /api/admin/characters/:guid/skills` - lihat dan ubah skill karakter yang sudah dimiliki (nilai 0-450; karakter harus offline)
 - `GET/POST /api/admin/characters/:guid/reputations` - lihat dan ubah standing faction (karakter harus offline)
 - `POST /api/admin/characters/:guid/teleport` - simpan map dan koordinat karakter; karakter online di-force logout sebelum posisi diperbarui
 - `POST /api/admin/characters/:guid/message` - broadcast pengumuman ke realm atau kirim pesan admin ke karakter online

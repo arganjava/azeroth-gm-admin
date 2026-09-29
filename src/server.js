@@ -158,6 +158,26 @@ const PROFESSION_SKILLS = {
   356: 'Fishing', 393: 'Skinning', 755: 'Jewelcrafting', 773: 'Inscription'
 };
 
+const REPUTATION_FACTIONS = {
+  21: 'Booty Bay', 47: 'Ironforge', 54: 'Gnomeregan Exiles', 59: 'Thorium Brotherhood',
+  68: 'Undercity', 69: 'Darnassus', 72: 'Stormwind', 76: 'Orgrimmar', 81: 'Thunder Bluff',
+  87: 'Bloodsail Buccaneers', 369: 'Gadgetzan', 470: 'Ratchet', 471: 'Wildhammer Clan',
+  529: 'Argent Dawn', 530: 'Darkspear Trolls', 576: 'Timbermaw Hold', 609: 'Cenarion Circle',
+  749: 'Hydraxian Waterlords', 909: 'Darkmoon Faire', 910: 'Brood of Nozdormu',
+  911: 'Silvermoon City', 930: 'Exodar', 932: 'The Aldor', 933: 'The Consortium',
+  934: 'The Scryers', 935: "The Sha'tar", 941: "The Mag'har", 942: 'Cenarion Expedition',
+  970: 'Sporeggar', 978: 'Kurenai', 989: 'Keepers of Time', 990: 'The Scale of the Sands',
+  1011: 'Lower City', 1012: 'Ashtongue Deathsworn', 1031: 'Sha\'tari Skyguard',
+  1037: 'Alliance Vanguard', 1038: 'Horde Expedition', 1073: 'The Kalu\'ak',
+  1090: 'The Kirin Tor', 1091: 'The Wyrmrest Accord', 1098: 'Knights of the Ebon Blade',
+  1104: 'Frenzyheart Tribe', 1105: 'The Oracles', 1106: 'Argent Crusade',
+  1107: 'The Sons of Hodir', 1119: 'The Ashen Verdict'
+};
+
+function getReputationFactionName(factionId) {
+  return REPUTATION_FACTIONS[Number(factionId)] || `Faction ${factionId}`;
+}
+
 const TELEPORT_MAPS = {
   0: 'Eastern Kingdoms', 1: 'Kalimdor', 530: 'Outland', 571: 'Northrend'
 };
@@ -275,17 +295,17 @@ app.get('/api/admin/accounts/:id', async (req, res, next) => {
 });
 
 app.get('/api/admin/guilds', async (req, res, next) => {
-  const query = parseSearchQuery(req.query.q, 80);
-  if (!query) return res.status(400).json({ error: 'kata pencarian harus 2-80 karakter' });
+  const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (query && (query.length < 2 || query.length > 80)) return res.status(400).json({ error: 'kata pencarian harus 2-80 karakter' });
   try {
     const numericQuery = /^\d+$/.test(query);
     const [rows] = await charactersPool.execute(
       `SELECT g.guildid, g.name, g.leaderguid, COUNT(gm.guid) AS memberCount, COALESCE(SUM(c.money), 0) AS totalMoney
        FROM guild g LEFT JOIN guild_member gm ON gm.guildid = g.guildid
        LEFT JOIN characters c ON c.guid = gm.guid
-       WHERE g.name LIKE ?${numericQuery ? ' OR g.guildid = ?' : ''}
-       GROUP BY g.guildid, g.name, g.leaderguid ORDER BY g.name LIMIT 30`,
-      numericQuery ? [`%${query}%`, Number(query)] : [`%${query}%`]
+       ${query ? `WHERE g.name LIKE ?${numericQuery ? ' OR g.guildid = ?' : ''}` : ''}
+       GROUP BY g.guildid, g.name, g.leaderguid ORDER BY g.name${query ? ' LIMIT 30' : ''}`,
+      query ? (numericQuery ? [`%${query}%`, Number(query)] : [`%${query}%`]) : []
     );
     return res.json({ data: rows });
   } catch (error) {
@@ -427,6 +447,62 @@ app.post('/api/admin/characters/:guid/professions', async (req, res, next) => {
   }
 });
 
+app.get('/api/admin/characters/:guid/skills', async (req, res, next) => {
+  const guid = parseGuid(req.params.guid);
+  if (!guid) return res.status(400).json({ error: 'guid karakter tidak valid' });
+  try {
+    const character = await findCharacter(guid);
+    if (!character) return res.status(404).json({ error: 'karakter tidak ditemukan' });
+    const [rows] = await charactersPool.execute(
+      'SELECT skill, value, max FROM character_skills WHERE guid = ? ORDER BY skill',
+      [guid]
+    );
+    return res.json({ data: rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post('/api/admin/characters/:guid/skills', async (req, res, next) => {
+  const guid = parseGuid(req.params.guid);
+  const skillId = Number(req.body?.skillId);
+  const value = Number(req.body?.value);
+  if (!guid || !Number.isInteger(skillId) || skillId < 0 || skillId > 65535 || !Number.isInteger(value) || value < 0 || value > 450) {
+    return res.status(400).json({ error: 'guid, skill, atau nilai tidak valid (0-450)' });
+  }
+
+  let connection;
+  try {
+    connection = await charactersPool.getConnection();
+    await connection.beginTransaction();
+    const [characters] = await connection.execute('SELECT online FROM characters WHERE guid = ? FOR UPDATE', [guid]);
+    if (!characters.length) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'karakter tidak ditemukan' });
+    }
+    if (characters[0].online) {
+      await connection.rollback();
+      return res.status(409).json({ error: 'skill hanya bisa diubah saat karakter offline' });
+    }
+    const [skills] = await connection.execute('SELECT skill FROM character_skills WHERE guid = ? AND skill = ? FOR UPDATE', [guid, skillId]);
+    if (!skills.length) {
+      await connection.rollback();
+      return res.status(404).json({ error: 'skill belum dimiliki karakter' });
+    }
+    await connection.execute(
+      'UPDATE character_skills SET value = ?, max = GREATEST(max, ?) WHERE guid = ? AND skill = ?',
+      [value, value, guid, skillId]
+    );
+    await connection.commit();
+    return res.json({ data: { guid, skillId, value } });
+  } catch (error) {
+    if (connection) await connection.rollback().catch(() => {});
+    return next(error);
+  } finally {
+    if (connection) connection.release();
+  }
+});
+
 app.get('/api/admin/characters/:guid/reputations', async (req, res, next) => {
   const guid = parseGuid(req.params.guid);
   if (!guid) return res.status(400).json({ error: 'guid karakter tidak valid' });
@@ -437,7 +513,7 @@ app.get('/api/admin/characters/:guid/reputations', async (req, res, next) => {
       'SELECT faction AS factionId, standing FROM character_reputation WHERE guid = ? ORDER BY faction',
       [guid]
     );
-    return res.json({ data: rows.map((row) => ({ ...row, factionName: `Faction ${row.factionId}` })) });
+    return res.json({ data: rows.map((row) => ({ ...row, factionName: getReputationFactionName(row.factionId) })) });
   } catch (error) {
     return next(error);
   }
@@ -470,7 +546,7 @@ app.post('/api/admin/characters/:guid/reputations', async (req, res, next) => {
       [guid, factionId, standing]
     );
     await connection.commit();
-    return res.json({ data: { guid, factionId, factionName: `Faction ${factionId}`, standing } });
+    return res.json({ data: { guid, factionId, factionName: getReputationFactionName(factionId), standing } });
   } catch (error) {
     if (connection) await connection.rollback().catch(() => {});
     return next(error);

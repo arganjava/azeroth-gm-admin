@@ -165,6 +165,9 @@ function App() {
   const [reputations, setReputations] = useState([]);
   const [reputationFactionId, setReputationFactionId] = useState('');
   const [reputationStanding, setReputationStanding] = useState('');
+  const [skills, setSkills] = useState([]);
+  const [skillId, setSkillId] = useState('');
+  const [skillValue, setSkillValue] = useState('');
   const [teleportMapId, setTeleportMapId] = useState('0');
   const [teleportLocation, setTeleportLocation] = useState('stormwind');
   const [teleportCoordinates, setTeleportCoordinates] = useState({ x: '-8833.38', y: '628.62', z: '94', orientation: '0' });
@@ -179,7 +182,8 @@ function App() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (search.trim().length < 2 || !token) {
+    const allGuilds = directoryMode === 'guilds' && !search.trim();
+    if ((!allGuilds && search.trim().length < 2) || !token) {
       setCharacters([]);
       setAccounts([]);
       setGuilds([]);
@@ -188,8 +192,10 @@ function App() {
     const controller = new AbortController();
     const timeout = setTimeout(async () => {
       try {
-        const result = await request(`/api/admin/${directoryMode}?q=${encodeURIComponent(search.trim())}`, token, { signal: controller.signal });
-        if (directoryMode === 'characters') setCharacters(result);
+        const endpoint = ['professions', 'reputations', 'skills'].includes(directoryMode) ? 'characters' : directoryMode;
+        const query = search.trim() ? `?q=${encodeURIComponent(search.trim())}` : '';
+        const result = await request(`/api/admin/${endpoint}${query}`, token, { signal: controller.signal });
+        if (endpoint === 'characters') setCharacters(result);
         if (directoryMode === 'accounts') setAccounts(result);
         if (directoryMode === 'guilds') setGuilds(result);
       } catch (requestError) {
@@ -223,10 +229,11 @@ function App() {
 
   async function loadCharacter(guid) {
     const character = await request(`/api/admin/characters/${guid}`, token);
-    const [logs, characterProfessions, characterReputations] = await Promise.all([
+    const [logs, characterProfessions, characterReputations, characterSkills] = await Promise.all([
       request(`/api/admin/characters/${guid}/money-logs`, token),
       request(`/api/admin/characters/${guid}/professions`, token),
-      request(`/api/admin/characters/${guid}/reputations`, token)
+      request(`/api/admin/characters/${guid}/reputations`, token),
+      request(`/api/admin/characters/${guid}/skills`, token)
     ]);
     setSelected(character);
     setItems(character.items || []);
@@ -240,6 +247,9 @@ function App() {
     setReputations(characterReputations);
     setReputationFactionId(characterReputations[0] ? String(characterReputations[0].factionId) : '');
     setReputationStanding(characterReputations[0] ? String(characterReputations[0].standing) : '');
+    setSkills(characterSkills);
+    setSkillId(characterSkills[0] ? String(characterSkills[0].skill) : '');
+    setSkillValue(characterSkills[0] ? String(characterSkills[0].value) : '');
   }
 
   async function loadAccount(id) {
@@ -346,6 +356,9 @@ function App() {
   }
 
   const equipped = new Map(items.map((item) => [Number(item.slot), item]));
+  const characterDirectory = ['characters', 'professions', 'reputations', 'skills'].includes(directoryMode);
+  const resultCount = directoryMode === 'accounts' ? accounts.length : directoryMode === 'guilds' ? guilds.length : characters.length;
+  const directoryTitle = ({ accounts: 'Akun', guilds: 'Guild', characters: 'Karakter', professions: 'Profesi', reputations: 'Reputasi', skills: 'Skills' })[directoryMode];
 
   return <div className="app-shell">
     <header className="topbar">
@@ -356,17 +369,24 @@ function App() {
 
     <main className="workspace" id="top">
       <aside className="search-rail">
-        <div className="rail-heading"><span className="eyebrow">DIRECTORY</span><span className="result-count">{(directoryMode === 'characters' ? characters.length : directoryMode === 'accounts' ? accounts.length : guilds.length).toString().padStart(2, '0')}</span></div>
+        <div className="rail-heading"><span className="eyebrow">REALM MENU</span><span className="result-count">{resultCount.toString().padStart(2, '0')}</span></div>
         <nav className="directory-tabs" aria-label="Menu utama">
-          <button className={directoryMode === 'accounts' ? 'active' : ''} type="button" onClick={() => changeDirectory('accounts')}>Akun</button>
-          <button className={directoryMode === 'guilds' ? 'active' : ''} type="button" onClick={() => changeDirectory('guilds')}>Guild</button>
-          <button className={directoryMode === 'characters' ? 'active' : ''} type="button" onClick={() => changeDirectory('characters')}>Karakter</button>
+          <div className="menu-group"><span className="menu-group-label">MANAGEMENT</span>
+            <button className={directoryMode === 'accounts' ? 'active' : ''} type="button" onClick={() => changeDirectory('accounts')}><i>◉</i>Akun</button>
+            <button className={directoryMode === 'guilds' ? 'active' : ''} type="button" onClick={() => changeDirectory('guilds')}><i>⌘</i>Guild</button>
+          </div>
+          <div className="menu-group"><span className="menu-group-label">CHARACTER</span>
+            <button className={directoryMode === 'characters' ? 'active' : ''} type="button" onClick={() => changeDirectory('characters')}><i>◎</i>Karakter</button>
+            <button className={directoryMode === 'professions' ? 'active' : ''} type="button" onClick={() => changeDirectory('professions')}><i>⌁</i>Profesi</button>
+            <button className={directoryMode === 'reputations' ? 'active' : ''} type="button" onClick={() => changeDirectory('reputations')}><i>◇</i>Reputasi</button>
+            <button className={directoryMode === 'skills' ? 'active' : ''} type="button" onClick={() => changeDirectory('skills')}><i>↗</i>Skills</button>
+          </div>
         </nav>
-        <h2>{directoryMode === 'characters' ? 'Karakter' : directoryMode === 'accounts' ? 'Akun' : 'Guild'}</h2>
-        <label className="search-box"><span>⌕</span><input aria-label={`Cari ${directoryMode}`} placeholder={directoryMode === 'characters' ? 'Cari nama karakter...' : directoryMode === 'accounts' ? 'Cari username / ID...' : 'Cari nama / ID guild...'} value={search} onChange={(event) => setSearch(event.target.value)} /><kbd>↵</kbd></label>
-        <p className="search-hint">Ketik minimal 2 karakter</p>
+        <div className="directory-list-heading"><h2>{directoryTitle}</h2><span>{resultCount.toString().padStart(2, '0')}</span></div>
+        <label className="search-box"><span>⌕</span><input aria-label={`Cari ${directoryTitle}`} placeholder={characterDirectory ? 'Cari nama karakter...' : directoryMode === 'accounts' ? 'Cari username / ID...' : 'Cari nama / ID guild...'} value={search} onChange={(event) => setSearch(event.target.value)} /><kbd>↵</kbd></label>
+        <p className="search-hint">{directoryMode === 'guilds' && !search ? 'Menampilkan semua guild' : 'Ketik minimal 2 karakter'}</p>
         <div className="character-list">
-          {directoryMode === 'characters' && characters.map((character) => <button className={`character-row ${selected?.guid === character.guid ? 'active' : ''}`} key={character.guid} type="button" onClick={() => loadCharacter(character.guid).catch((reason) => setError(reason.message))}>
+          {characterDirectory && characters.map((character) => <button className={`character-row ${selected?.guid === character.guid ? 'active' : ''}`} key={character.guid} type="button" onClick={() => loadCharacter(character.guid).catch((reason) => setError(reason.message))}>
             <span className="character-avatar">{character.name.slice(0, 1).toUpperCase()}</span><span className="character-copy"><strong>{character.name}</strong><small>{CLASSES[character.class] || `Class ${character.class}`} · Level {character.level}</small></span><span className={`online-indicator ${character.online ? 'online' : ''}`} title={character.online ? 'Online' : 'Offline'} />
           </button>)}
           {directoryMode === 'accounts' && accounts.map((account) => <button className={`character-row ${selectedAccount?.id === account.id ? 'active' : ''}`} key={account.id} type="button" onClick={() => loadAccount(account.id).catch((reason) => setError(reason.message))}>
@@ -375,7 +395,7 @@ function App() {
           {directoryMode === 'guilds' && guilds.map((guild) => <button className={`character-row ${selectedGuild?.guildid === guild.guildid ? 'active' : ''}`} key={guild.guildid} type="button" onClick={() => loadGuild(guild.guildid).catch((reason) => setError(reason.message))}>
             <span className="character-avatar">{guild.name.slice(0, 1)}</span><span className="character-copy"><strong>{guild.name}</strong><small>{guild.memberCount} anggota · {formatMoney(guild.totalMoney)}</small></span>
           </button>)}
-          {search.length >= 2 && (directoryMode === 'characters' ? characters : directoryMode === 'accounts' ? accounts : guilds).length === 0 && <div className="empty-search">Tidak ada hasil ditemukan.</div>}
+          {(search.length >= 2 || directoryMode === 'guilds') && resultCount === 0 && <div className="empty-search">Tidak ada hasil ditemukan.</div>}
         </div>
         <div className="rail-footer"><span>{directoryMode.toUpperCase()} DATABASE</span><span>01 / LIVE</span></div>
       </aside>
@@ -445,7 +465,7 @@ function App() {
                     setProfessionValue(String(skill?.value || ''));
                   }}>{professions.map((profession) => <option key={profession.skill} value={profession.skill}>{profession.name} · {profession.value}/{profession.max}</option>)}</select>
                   <label className="field-label" htmlFor="profession-value">SKILL BARU (1-450)</label>
-                  <div className="inline-control"><input id="profession-value" type="number" min="1" max="450" value={professionValue} onChange={(event) => setProfessionValue(event.target.value)} required /><button className="primary-button" type="submit" disabled={busy || !professionSkillId}>Terapkan <span>↗</span></button></div>
+                  <div className="inline-control"><button className="step-button" type="button" aria-label="Kurangi skill profesi 25" disabled={busy || selected.online} onClick={() => setProfessionValue(String(Math.max(1, Number(professionValue || 1) - 25)))}>−</button><input id="profession-value" type="number" min="1" max="450" value={professionValue} onChange={(event) => setProfessionValue(event.target.value)} required /><button className="step-button" type="button" aria-label="Tambah skill profesi 25" disabled={busy || selected.online} onClick={() => setProfessionValue(String(Math.min(450, Number(professionValue || 0) + 25)))}>+</button><button className="primary-button" type="submit" disabled={busy || selected.online || !professionSkillId}>Terapkan <span>↗</span></button></div>
                   {selected.online && <p className="operation-note">Profesi hanya dapat diubah saat karakter offline.</p>}
                 </form> : <p className="operation-note">Karakter belum memiliki profesi yang dapat diubah.</p>}
               </section>
@@ -466,9 +486,28 @@ function App() {
                   <label className="field-label" htmlFor="reputation-faction-id">FACTION ID</label>
                   <input id="reputation-faction-id" type="number" min="1" max="4294967295" value={reputationFactionId} onChange={(event) => setReputationFactionId(event.target.value)} required />
                   <label className="field-label" htmlFor="reputation-standing">STANDING (-42000 SAMPAI 42999)</label>
-                  <div className="inline-control"><input id="reputation-standing" type="number" min="-42000" max="42999" value={reputationStanding} onChange={(event) => setReputationStanding(event.target.value)} required /><button className="primary-button" type="submit" disabled={busy || !reputationFactionId}>Terapkan <span>↗</span></button></div>
+                  <div className="inline-control"><button className="step-button" type="button" aria-label="Kurangi reputasi 1000" disabled={busy || selected.online} onClick={() => setReputationStanding(String(Math.max(-42000, Number(reputationStanding || 0) - 1000)))}>−</button><input id="reputation-standing" type="number" min="-42000" max="42999" value={reputationStanding} onChange={(event) => setReputationStanding(event.target.value)} required /><button className="step-button" type="button" aria-label="Tambah reputasi 1000" disabled={busy || selected.online} onClick={() => setReputationStanding(String(Math.min(42999, Number(reputationStanding || 0) + 1000)))}>+</button><button className="primary-button" type="submit" disabled={busy || selected.online || !reputationFactionId}>Terapkan <span>↗</span></button></div>
                   {selected.online && <p className="operation-note">Reputasi hanya dapat diubah saat karakter offline.</p>}
                 </form>
+              </section>
+
+              <section className="operation-block">
+                <div className="operation-heading"><span className="operation-icon">↗</span><div><span className="eyebrow">CHARACTER SKILLS</span><h3>Atur skill</h3></div></div>
+                {skills.length ? <form onSubmit={(event) => {
+                  event.preventDefault();
+                  const skill = skills.find((entry) => Number(entry.skill) === Number(skillId));
+                  perform(() => request(`/api/admin/characters/${selected.guid}/skills`, token, { method: 'POST', body: JSON.stringify({ skillId: Number(skillId), value: Number(skillValue) }) }), `Skill ${skill?.skill || skillId} berhasil diperbarui.`);
+                }}>
+                  <label className="field-label" htmlFor="character-skill">SKILL KARAKTER</label>
+                  <select id="character-skill" value={skillId} disabled={busy} onChange={(event) => {
+                    const skill = skills.find((entry) => Number(entry.skill) === Number(event.target.value));
+                    setSkillId(event.target.value);
+                    setSkillValue(String(skill?.value ?? ''));
+                  }}>{skills.map((skill) => <option key={skill.skill} value={skill.skill}>Skill {skill.skill} · {skill.value}/{skill.max}</option>)}</select>
+                  <label className="field-label" htmlFor="character-skill-value">NILAI SKILL (0-450)</label>
+                  <div className="inline-control"><button className="step-button" type="button" aria-label="Kurangi skill 10" disabled={busy || selected.online} onClick={() => setSkillValue(String(Math.max(0, Number(skillValue || 0) - 10)))}>−</button><input id="character-skill-value" type="number" min="0" max="450" value={skillValue} onChange={(event) => setSkillValue(event.target.value)} required /><button className="step-button" type="button" aria-label="Tambah skill 10" disabled={busy || selected.online} onClick={() => setSkillValue(String(Math.min(450, Number(skillValue || 0) + 10)))}>+</button><button className="primary-button" type="submit" disabled={busy || selected.online || !skillId}>Terapkan <span>↗</span></button></div>
+                  {selected.online && <p className="operation-note">Skill hanya dapat diubah saat karakter offline.</p>}
+                </form> : <p className="operation-note">Karakter belum memiliki skill yang dapat diubah.</p>}
               </section>
 
               <section className="operation-block">
