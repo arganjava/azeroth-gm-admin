@@ -6,7 +6,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const mysql = require('mysql2/promise');
-const { makeRegistrationData } = require('./srp6');
+const { makeRegistrationData, verifyPassword } = require('./srp6');
 const { executeSoapCommand } = require('./soap');
 
 const app = express();
@@ -108,6 +108,46 @@ app.post('/api/accounts', async (req, res, next) => {
     return next(error);
   } finally {
     connection.release();
+  }
+});
+
+const changePasswordLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10 });
+
+app.put('/api/accounts/password', changePasswordLimiter, async (req, res, next) => {
+  const body = req.body || {};
+  const username = typeof body.username === 'string' ? body.username.trim() : '';
+  const oldPassword = typeof body.oldPassword === 'string' ? body.oldPassword : '';
+  const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
+
+  if (!/^[A-Za-z0-9]{3,32}$/.test(username)) {
+    return res.status(400).json({ error: 'username harus 3-32 karakter alfanumerik' });
+  }
+  if (!oldPassword) {
+    return res.status(400).json({ error: 'oldPassword wajib diisi' });
+  }
+  if (newPassword.length < 3 || newPassword.length > 32) {
+    return res.status(400).json({ error: 'newPassword harus 3-32 karakter' });
+  }
+  if (newPassword === oldPassword) {
+    return res.status(400).json({ error: 'newPassword harus berbeda dari oldPassword' });
+  }
+
+  try {
+    const normalizedUsername = username.toUpperCase();
+    const [rows] = await pool.execute('SELECT id, salt, verifier FROM account WHERE username = ?', [normalizedUsername]);
+    const account = rows[0];
+    if (!account || !verifyPassword(normalizedUsername, oldPassword, account.salt, account.verifier)) {
+      return res.status(401).json({ error: 'username atau password lama salah' });
+    }
+
+    const { salt, verifier } = makeRegistrationData(normalizedUsername, newPassword);
+    await pool.execute(
+      'UPDATE account SET salt = ?, verifier = ?, session_key = NULL WHERE id = ?',
+      [salt, verifier, account.id]
+    );
+    return res.json({ data: { id: account.id, username: normalizedUsername, message: 'password berhasil diubah' } });
+  } catch (error) {
+    return next(error);
   }
 });
 

@@ -20,6 +20,18 @@ function bigIntToLittleEndianBuffer(value, length) {
   return Buffer.from(hex, 'hex').reverse();
 }
 
+function computeVerifier(username, password, salt) {
+  const passwordHash = sha1(`${username.toUpperCase()}:${password.toUpperCase()}`);
+  const privateKey = littleEndianBufferToBigInt(sha1(salt, passwordHash));
+  return bigIntToLittleEndianBuffer(modPow(GENERATOR, privateKey, MODULUS), 32);
+}
+
+function verifyPassword(username, password, salt, verifier) {
+  const computed = computeVerifier(username, password, salt);
+  const stored = Buffer.from(verifier);
+  return computed.length === stored.length && crypto.timingSafeEqual(computed, stored);
+}
+
 function makeRegistrationData(username, password) {
   const normalizedUsername = username.toUpperCase();
   const normalizedPassword = password.toUpperCase();
@@ -44,4 +56,4 @@ function modPow(base, exponent, modulus) {
   return result;
 }
 
-module.exports = { makeRegistrationData };
+module.exports = { makeRegistrationData, verifyPassword };
