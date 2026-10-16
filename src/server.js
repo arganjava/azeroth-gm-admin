@@ -44,9 +44,9 @@ function validateAccountInput(body) {
   const password = typeof body.password === 'string' ? body.password : '';
   const email = typeof body.email === 'string' ? body.email.trim() : '';
 
-  if (!/^[A-Za-z0-9]{3,32}$/.test(username)) {
-    return 'username harus 3-32 karakter alfanumerik';
-  }
+  // if (!/^[A-Za-z0-9]{3,32}$/.test(username)) {
+  //   return 'username harus 3-32 karakter alfanumerik';
+  // }
   if (password.length < 3 || password.length > 32) {
     return 'password harus 3-32 karakter';
   }
