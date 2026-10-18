@@ -116,29 +116,29 @@ const changePasswordLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10 })
 app.put('/api/accounts/password', changePasswordLimiter, async (req, res, next) => {
   const body = req.body || {};
   const username = typeof body.username === 'string' ? body.username.trim() : '';
-  const oldPassword = typeof body.oldPassword === 'string' ? body.oldPassword : '';
+  //const oldPassword = typeof body.oldPassword === 'string' ? body.oldPassword : '';
   const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
 
-  if (!/^[A-Za-z0-9]{3,32}$/.test(username)) {
-    return res.status(400).json({ error: 'username harus 3-32 karakter alfanumerik' });
-  }
-  if (!oldPassword) {
-    return res.status(400).json({ error: 'oldPassword wajib diisi' });
-  }
+  // if (!/^[A-Za-z0-9]{3,32}$/.test(username)) {
+  //   return res.status(400).json({ error: 'username harus 3-32 karakter alfanumerik' });
+  // }
+  // if (!oldPassword) {
+  //   return res.status(400).json({ error: 'oldPassword wajib diisi' });
+  // }
   if (newPassword.length < 3 || newPassword.length > 32) {
     return res.status(400).json({ error: 'newPassword harus 3-32 karakter' });
   }
-  if (newPassword === oldPassword) {
-    return res.status(400).json({ error: 'newPassword harus berbeda dari oldPassword' });
-  }
+  // if (newPassword === oldPassword) {
+  //   return res.status(400).json({ error: 'newPassword harus berbeda dari oldPassword' });
+  // }
 
   try {
     const normalizedUsername = username.toUpperCase();
     const [rows] = await pool.execute('SELECT id, salt, verifier FROM account WHERE username = ?', [normalizedUsername]);
     const account = rows[0];
-    if (!account || !verifyPassword(normalizedUsername, oldPassword, account.salt, account.verifier)) {
-      return res.status(401).json({ error: 'username atau password lama salah' });
-    }
+    // if (!account || !verifyPassword(normalizedUsername, oldPassword, account.salt, account.verifier)) {
+    //   return res.status(401).json({ error: 'username atau password lama salah' });
+    // }
 
     const { salt, verifier } = makeRegistrationData(normalizedUsername, newPassword);
     await pool.execute(
